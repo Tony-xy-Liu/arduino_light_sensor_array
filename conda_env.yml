@@ -1,0 +1,8 @@
+name: sensor_array
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+    - pyusb==1.2.1
