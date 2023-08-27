@@ -52,7 +52,7 @@ def Monitor(matrix: list[list]):
     print()
 
 
-def Run(out_path: Path):
+def Run(out_path: Path, usb_port: str, baud_rate: int):
     if not out_path.exists():
         os.makedirs(out_path)
     run_name = f"{StdTime.Timestamp()}"
@@ -60,7 +60,7 @@ def Run(out_path: Path):
     arduino = None
     while True:
         try:
-            arduino = serial.Serial(port='/dev/ttyACM0', baudrate=230400, timeout=.1)
+            arduino = serial.Serial(port=usb_port, baudrate=baud_rate, timeout=.1)
             break
         except SerialException:
             time.sleep(0.1)
@@ -83,11 +83,11 @@ def Run(out_path: Path):
         HEIGHT = 6
         cols = [col for col in _batch(vals, HEIGHT)]
     
-        cols[-1].reverse()
-        cols[-2].reverse()
-        _temp = cols[-2]
-        cols[-2] = cols[-1]
-        cols[-1] = _temp
+        # cols[-1].reverse()
+        # cols[-2].reverse()
+        # _temp = cols[-2]
+        # cols[-2] = cols[-1]
+        # cols[-1] = _temp
         return cols
 
     last = 0

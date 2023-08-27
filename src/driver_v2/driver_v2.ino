@@ -3,32 +3,30 @@
 
 const int CHANNELS_PER_MUX = 12;
 const int MUX_BITS = 4;
-const int MUX_CONTROL_PINS[MUX_BITS] = {5, 4, 3, 2};
-const int N_MULIPLEXERS = 2;
+const int MUX_CONTROL_PINS[] = {5, 4, 3, 2}; // bits 0, 1, 2, 3
+const int N_MULIPLEXERS = 2; // some usages are hard coded, see read_array()
 const int MUXES[] = {A4, A5};
 const int INDICATOR_PIN = 8;
-// const long USB_BAUD = 4800;
-// const long USB_BAUD = 115200;
-const long USB_BAUD = 500000;
+const long USB_BAUD_RATE = 500000;
 
-void set_channel(int ch) {
+void set_mux_channel(int ch) {
   for (int i=0; i<MUX_BITS; i++) {
     bool sig = bitRead(ch, i);
     digitalWrite(MUX_CONTROL_PINS[i], sig);
   }
 }
 
-void sort_desc(int *arr) {
-  qsort(arr, 5, sizeof(arr[0]), [](const void *a, const void *b){return (*((int *)a) - *((int *)b));});
+void sort_desc(int *arr, int size) {
+  qsort(arr, size, sizeof(arr[0]), [](const void *a, const void *b){return (*((int *)a) - *((int *)b));});
 }
 
 float read(int mux) {
   int samples = 15;
   int values[samples];
   for (int i=0; i<samples; i++) {
-    values[i] = analogRead(mux);
+    values[i] = analogRead(MUXES[mux]);
   }
-  sort_desc(values);
+  sort_desc(values, samples);
   int sum = 0;
   const int CUTT_START = 1;
   const int CUTT_END = 1;
@@ -40,19 +38,13 @@ float read(int mux) {
 
 void read_array(float buffer[]) {
   for (int mux_channel=0; mux_channel<CHANNELS_PER_MUX; mux_channel++) {
-    set_channel(mux_channel);
-    for (int mux_i=0; mux_i<N_MULIPLEXERS; mux_i++) {
-    
-    }
-    for (int mux_i=0; mux_i<N_MULIPLEXERS; mux_i++) {
-      // buffer iterates all channels of one mux before moving on to the next
-      int i = mux_channel+(CHANNELS_PER_MUX*mux_i);
-      buffer[i] = read(MUXES[mux_i]);
-    }
+    set_mux_channel(mux_channel);
+    buffer[mux_channel] = read(0);
+    buffer[CHANNELS_PER_MUX + (CHANNELS_PER_MUX - mux_channel - 1)] = read(1); // second multiplexer is reversed
   }
 }
 
-void monitor_array(long now, int counter) {
+void report_array_to_usb(long now, int counter) {
   const int ARRAY_SIZE = CHANNELS_PER_MUX * N_MULIPLEXERS;
   float buffer[ARRAY_SIZE];
   read_array(buffer);
@@ -69,17 +61,8 @@ void monitor_array(long now, int counter) {
   Serial.println("]");
 }
 
-// for testing single channel of all muxes
-void monitor_one(int ch) {
-  set_channel(ch);
-  for (int i=0; i<N_MULIPLEXERS; i++) {
-    Serial.print(read(MUXES[i]));
-    if (i<N_MULIPLEXERS-1) Serial.print(",");
-  }
-}
-
 void setup() {
-  Serial.begin(USB_BAUD);
+  Serial.begin(USB_BAUD_RATE);
   Serial.println("Setup started...");
 
   for (int i=0; i<N_MULIPLEXERS; i++) {
@@ -101,12 +84,6 @@ void loop() {
   counter = counter + 1;
   led = !led;
 
-  monitor_array(now, counter);
+  report_array_to_usb(now, counter);
   digitalWrite(INDICATOR_PIN, led);
-
-  // Test single channel
-  // monitor_one(3);
-  // // Serial.print(",");
-  // // monitor_one(0);
-  // Serial.println("");
 }
