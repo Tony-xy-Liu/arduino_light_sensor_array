@@ -9,7 +9,7 @@ case $1 in
     --run|-r)
         cd $HERE/src
         shift
-        python -m $NAME $@
+        python -m $NAME --ws $HERE $@
         cd $HERE
         # PYTHONPATH=$HERE/src:$PYTHONPATH
         # python -c "from limes_x.cli import main; main()"

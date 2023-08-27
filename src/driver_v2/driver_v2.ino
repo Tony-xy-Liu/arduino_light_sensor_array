@@ -1,34 +1,49 @@
 #include <SPI.h>
 #include <SD.h>
 
-const int CHANNELS_PER_MUX = 3;
+const int CHANNELS_PER_MUX = 12;
 const int MUX_BITS = 4;
-const int MUX_CONTROL_PINS[MUX_BITS] = {2, 3, 4, 5};
-const int N_MULIPLEXERS = 1;
-// const int MUXES[N_MULIPLEXERS] = {A0, A1};
-const int MUXES[N_MULIPLEXERS] = {A3};
+const int MUX_CONTROL_PINS[MUX_BITS] = {5, 4, 3, 2};
+const int N_MULIPLEXERS = 2;
+const int MUXES[] = {A4, A5};
+const int INDICATOR_PIN = 8;
+// const long USB_BAUD = 4800;
+// const long USB_BAUD = 115200;
+const long USB_BAUD = 500000;
 
 void set_channel(int ch) {
-  for (int i = MUX_BITS-1; i>=0; i--) {
-    digitalWrite(MUX_CONTROL_PINS[i], bitRead(ch, i)); // bitRead converts values to binary
+  for (int i=0; i<MUX_BITS; i++) {
+    bool sig = bitRead(ch, i);
+    digitalWrite(MUX_CONTROL_PINS[i], sig);
   }
-  delay(5);
 }
 
-int read(int mux) {
-  int samples = 3;
-  int sum = 0;
+void sort_desc(int *arr) {
+  qsort(arr, 5, sizeof(arr[0]), [](const void *a, const void *b){return (*((int *)a) - *((int *)b));});
+}
+
+float read(int mux) {
+  int samples = 15;
+  int values[samples];
   for (int i=0; i<samples; i++) {
-    sum = sum + analogRead(mux);
-    // delay(1);
+    values[i] = analogRead(mux);
   }
-  // return (int)((float(sum) / float(samples)*10)+0.5);
-  return (int)((float(sum) / float(samples))+0.5);
+  sort_desc(values);
+  int sum = 0;
+  const int CUTT_START = 1;
+  const int CUTT_END = 1;
+  for (int i=CUTT_START; i<samples-CUTT_END; i++) { // trim largest and smallest values in sorted array
+    sum += values[i];
+  }
+  return float(sum) / float(samples-CUTT_END-CUTT_END);
 }
 
-void read_array(int buffer[]) {
+void read_array(float buffer[]) {
   for (int mux_channel=0; mux_channel<CHANNELS_PER_MUX; mux_channel++) {
     set_channel(mux_channel);
+    for (int mux_i=0; mux_i<N_MULIPLEXERS; mux_i++) {
+    
+    }
     for (int mux_i=0; mux_i<N_MULIPLEXERS; mux_i++) {
       // buffer iterates all channels of one mux before moving on to the next
       int i = mux_channel+(CHANNELS_PER_MUX*mux_i);
@@ -37,62 +52,61 @@ void read_array(int buffer[]) {
   }
 }
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("Setup started...");
-
-  for (int pin=0; pin<N_MULIPLEXERS; pin++) {
-    pinMode(pin, INPUT);
-  }
-
-  for (int pin=0; pin<MUX_BITS; pin++) {
-    pinMode(pin, OUTPUT);
-  }
-
-  set_channel(0);
-}
-
-// unsigned long last_time = millis();
-// int counter = 0;
-void loop() {
-  // unsigned long now = millis();
-  // unsigned long delta_time = now-last_time;
-  // if (delta_time < 500) {return;}
-  // last_time = now;
-
-  // Serial.println(">>");
+void monitor_array(long now, int counter) {
   const int ARRAY_SIZE = CHANNELS_PER_MUX * N_MULIPLEXERS;
-  int buffer[ARRAY_SIZE];
+  float buffer[ARRAY_SIZE];
   read_array(buffer);
+  Serial.print("[");
+  Serial.print(now);
+  Serial.print(",");
+  Serial.print(counter);
+  Serial.print(",");
   for (int i=0; i<ARRAY_SIZE; i++) {
-    Serial.print(buffer[i]);
+    float val = buffer[i];
+    Serial.print(val);
     if (i<ARRAY_SIZE-1) Serial.print(",");
   }
-  Serial.println("");
-
+  Serial.println("]");
 }
 
-// scratch
+// for testing single channel of all muxes
+void monitor_one(int ch) {
+  set_channel(ch);
+  for (int i=0; i<N_MULIPLEXERS; i++) {
+    Serial.print(read(MUXES[i]));
+    if (i<N_MULIPLEXERS-1) Serial.print(",");
+  }
+}
 
-// more complex version of read()
-// too slow
-// void sort_desc(int *arr) {
-//   qsort(arr, 5, sizeof(arr[0]), [](const void *a, const void *b){return (*((int *)a) - *((int *)b));});
-// }
+void setup() {
+  Serial.begin(USB_BAUD);
+  Serial.println("Setup started...");
 
-// float read(int mux) {
-//   int samples = 2;
-//   int values[samples];
-//   for (int i=0; i<samples; i++) {
-//     values[i] = analogRead(mux);
-//     // delay(1);
-//   }
-//   sort_desc(values);
-//   int sum = 0;
-//   const int CUTT_START = 0;
-//   const int CUTT_END = 0;
-//   for (int i=CUTT_START; i<samples-CUTT_END; i++) { // trim largest and smallest values in sorted array
-//     sum += values[i];
-//   }
-//   return float(sum) / float(samples-CUTT_END-CUTT_END);
-// }
+  for (int i=0; i<N_MULIPLEXERS; i++) {
+    pinMode(MUXES[i], INPUT);
+  }
+
+  for (int i=0; i<MUX_BITS; i++) {
+    pinMode(MUX_CONTROL_PINS[i], OUTPUT);
+  }
+
+  pinMode(INDICATOR_PIN, OUTPUT);
+}
+
+unsigned long last_time = millis();
+int counter = 0;
+bool led = 0;
+void loop() {
+  unsigned long now = millis();
+  counter = counter + 1;
+  led = !led;
+
+  monitor_array(now, counter);
+  digitalWrite(INDICATOR_PIN, led);
+
+  // Test single channel
+  // monitor_one(3);
+  // // Serial.print(",");
+  // // monitor_one(0);
+  // Serial.println("");
+}
