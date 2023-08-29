@@ -5,8 +5,6 @@ from serial import SerialException
 import time
 import json
 from datetime import datetime as dt
-import numpy as np
-
 
 class StdTime:
     FORMAT = '%Y-%m-%d_%H-%M-%S'
@@ -27,7 +25,7 @@ class StdTime:
     def CurrentTimeMillis(cls):
         return round(time.time() * 1000)
 
-def Monitor(matrix: list[list]):    
+def Monitor(matrix: list[list], minv: float, meanv: float, maxv: float):    
     def _to_greyscale(val):
         GREYSCALE = [
             "  ",
@@ -43,14 +41,18 @@ def Monitor(matrix: list[list]):
         i = max(i, 0)
         return GREYSCALE[i]
     
+    def _pad(v: float):
+        str_val = f"{v:0.2f}"
+        pad = "0"*(6-len(str_val))
+        return pad+str_val
+    
     # matrix = matrix.copy()
     # matrix.reverse()
     for col in matrix:
         # str_col = [f"{int(round(v*10)):03}" for v in col]
         str_col = [_to_greyscale(v) for v in col]
-        print(",".join(str_col))
-    print()
-
+        print(",".join(str_col) + " - " + ",".join(_pad(v) for v in col))
+    print(f"{_pad(minv)} | {_pad(meanv)} | {_pad(maxv)}")
 
 def Run(out_path: Path, usb_port: str, baud_rate: int):
     if not out_path.exists():
@@ -96,6 +98,7 @@ def Run(out_path: Path, usb_port: str, baud_rate: int):
     started = False
     while True:
         now = StdTime.CurrentTimeMillis()
+        delta_t = now-last
         
         x = arduino.readline().decode(encoding="utf-8", errors="ignore")
         if len(x) == 0: continue
@@ -104,16 +107,17 @@ def Run(out_path: Path, usb_port: str, baud_rate: int):
             entry = json.loads(x)
             assert entry is not None
             elapsed_time, frame = entry[:2]
+            vals = entry[2:]
             if not started and elapsed_time != 0: continue
             started = True
-            matrix = _flip_mux2(entry[2:])
+            matrix = _flip_mux2(vals)
             buffer.append([elapsed_time, frame]+[v for g in matrix for v in g])
         except json.JSONDecodeError:
             continue
         
-        Monitor(matrix)
+        Monitor(matrix, min(vals), sum(vals)/len(vals), max(vals))
 
-        if now - last >= SAVE_PERIOD:
+        if delta_t >= SAVE_PERIOD:
             log_file.writelines([
                 ",".join([f"{v}" for v in entry])+"\n"
             for entry in buffer])
