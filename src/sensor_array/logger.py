@@ -5,6 +5,7 @@ from serial import SerialException
 import time
 import json
 from datetime import datetime as dt
+# import numpy as np
 
 class StdTime:
     FORMAT = '%Y-%m-%d_%H-%M-%S'
@@ -34,8 +35,13 @@ def Monitor(matrix: list[list], minv: float, meanv: float, maxv: float):
             "▓▓",
             "██",
         ]
-        _min, _max = 0, 300
-        scaled = (val-_min)/(_max-_min)
+        _min, _max = minv, maxv
+        
+        if _max-_min == 0:
+            scaled = 0
+        else:
+            scaled = (val-_min)/(_max-_min)
+
         i = int(scaled * len(GREYSCALE) + 0.5)
         i = min(i, len(GREYSCALE)-1)
         i = max(i, 0)
@@ -51,8 +57,10 @@ def Monitor(matrix: list[list], minv: float, meanv: float, maxv: float):
     for col in matrix:
         # str_col = [f"{int(round(v*10)):03}" for v in col]
         str_col = [_to_greyscale(v) for v in col]
-        print(",".join(str_col) + " - " + ",".join(_pad(v) for v in col))
-    print(f"{_pad(minv)} | {_pad(meanv)} | {_pad(maxv)}")
+        # print(",".join(str_col))
+        print(",".join(str_col) + "    " + " ".join(_pad(v) for v in col))
+    # top = 
+    print(f"min:{_pad(minv)} | av:{_pad(meanv)} | max:{_pad(maxv)}")
 
 def Run(out_path: Path, usb_port: str, baud_rate: int):
     if not out_path.exists():
@@ -81,15 +89,10 @@ def Run(out_path: Path, usb_port: str, baud_rate: int):
         for ndx in range(0, l, n):
             yield iterable[ndx:min(ndx + n, l)]
             
-    def _flip_mux2(vals: list[list]):
+    def _to_matrix(vals: list[list]):
         HEIGHT = 6
         cols = [col for col in _batch(vals, HEIGHT)]
-    
-        # cols[-1].reverse()
-        # cols[-2].reverse()
-        # _temp = cols[-2]
-        # cols[-2] = cols[-1]
-        # cols[-1] = _temp
+        # return np.array(cols)
         return cols
 
     last = 0
@@ -110,7 +113,7 @@ def Run(out_path: Path, usb_port: str, baud_rate: int):
             vals = entry[2:]
             if not started and elapsed_time != 0: continue
             started = True
-            matrix = _flip_mux2(vals)
+            matrix = _to_matrix(vals)
             buffer.append([elapsed_time, frame]+[v for g in matrix for v in g])
         except json.JSONDecodeError:
             continue

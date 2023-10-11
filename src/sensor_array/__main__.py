@@ -19,4 +19,7 @@ if __name__ == "__main__":
     parser.add_argument('-w', '--ws', metavar='PATH', help="working directory", required=False, default="./")
     args = parser.parse_args(sys.argv[1:])
     os.chdir(args.ws)
-    Run(Path(args.out).absolute(), args.usb, args.baud)
+    try:
+        Run(Path(args.out).absolute(), args.usb, args.baud)
+    except KeyboardInterrupt:
+        pass
